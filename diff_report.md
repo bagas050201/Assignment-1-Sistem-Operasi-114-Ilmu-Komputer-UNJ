@@ -272,6 +272,16 @@ struct proc {
 
 sebelum
 
+line 147 - 153
+```
+ sp -= sizeof *p->context;
+  p->context = (struct context*)sp;
+  memset(p->context, 0, sizeof *p->context);
+  p->context->eip = (uint)forkret;
+
+  return p;
+}
+```
 line 562 - 569
 ```
 #elif defined(CS333_P1)
