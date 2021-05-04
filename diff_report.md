@@ -1,30 +1,81 @@
 <h1 align="center"> ASSIGNMENT 1 REPORT </h1>
 <br>
-<br>
 
 ## Modified Code
 
-### System Call Tracing (point 1 dan 2)
+notes : 
+- point yang dimaksud adalah rujukan pengerjaan pada file assignment1.pdf
+- line sebelum didapat dari file default xv6-pdx.tar
+### Xv6 Makefile & Conditional compilation (point 1 dan 2)
 
 #### Makefile
 
-Before
-
-line 3-4
+`Sebelum`
+- line 3-4
 ```
 CS333_PROJECT ?= 0
 PRINT_SYSCALLS ?= 0
 ```
 
-After
-
-line 3-4
+`Sesudah`
+- line 4-5
 ```
 CS333_PROJECT ?= 1
 PRINT_SYSCALLS ?= 1
 ```
-#### Syscall.c
 
+###  Implementing a new system call (Point 3)
+
+#### Syscall.c
+`Sebelum`
+- line 166 - 180
+
+```
+void
+syscall(void)
+{
+  int num;
+  struct proc *curproc = myproc();
+
+  num = curproc->tf->eax;
+  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    curproc->tf->eax = syscalls[num]();
+  } else {
+    cprintf("%d %s: unknown sys call %d\n",
+            curproc->pid, curproc->name, num);
+    curproc->tf->eax = -1;
+  }
+}
+```
+`Sesudah`
+- line 177 - 198
+
+```
+void
+syscall(void)
+{
+  int num;
+  struct proc *curproc = myproc();
+
+  num = curproc->tf->eax;
+  //point 3
+  #ifdef CS333_P1
+    #ifdef PRINT_SYSCALLS
+      cprintf("%s -> %d \n", syscallnames[num], num);
+    #endif
+  #endif
+
+  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    curproc->tf->eax = syscalls[num]();
+  } else {
+    cprintf("%d %s: unknown sys call %d\n",
+            curproc->pid, curproc->name, num);
+    curproc->tf->eax = -1;
+  }
+}
+```
+
+###  Creating a new user command & The xv6 process structure (Point 4 dan 5)
 ### Date 
 #### Makefile
 
