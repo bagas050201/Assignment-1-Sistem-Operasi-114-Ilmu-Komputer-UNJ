@@ -228,7 +228,7 @@ static int (*syscalls[])(void) = {
 #endif
 };
 ```
-### syscall.h
+#### syscall.h
 `Sebelum`
 - line 1 - 24
 
@@ -291,7 +291,7 @@ static int (*syscalls[])(void) = {
 #define SYS_date    SYS_halt+1
 ```
 
-### usys.S
+#### usys.S
 `Sebelum`
 - line 1 - 32
 
@@ -368,8 +368,144 @@ SYSCALL(halt)
 SYSCALL(date)
 ```
 
-### d
-### Date 
+#### user.h
+
+`Sebelum`
+- line 29 - 45
+
+```
+// ulib.c
+int stat(char*, struct stat*);
+char* strcpy(char*, char*);
+void *memmove(void*, void*, int);
+char* strchr(const char*, char c);
+int strcmp(const char*, const char*);
+void printf(int, char*, ...);
+char* gets(char*, int max);
+uint strlen(char*);
+void* memset(void*, int, uint);
+void* malloc(uint);
+void free(void*);
+int atoi(const char*);
+#ifdef PDX_XV6
+int atoo(const char*);
+int strncmp(const char*, const char*, uint);
+#endif // PDX_XV6
+```
+
+`Sesudah`
+- line 29 - 49
+```
+// ulib.c
+int stat(char*, struct stat*);
+char* strcpy(char*, char*);
+void *memmove(void*, void*, int);
+char* strchr(const char*, char c);
+int strcmp(const char*, const char*);
+void printf(int, char*, ...);
+char* gets(char*, int max);
+uint strlen(char*);
+void* memset(void*, int, uint);
+void* malloc(uint);
+void free(void*);
+int atoi(const char*);
+#ifdef PDX_XV6
+int atoo(const char*);
+int strncmp(const char*, const char*, uint);
+#endif // PDX_XV6
+
+#ifdef CS333_P1
+int date(struct rtcdate*);
+#endif // CS333_P1
+```
+
+#### sysproc.c
+
+`Sebelum`
+- batas paling bawah hanya sampai line 99
+
+```
+#endif // PDX_XV6
+```
+
+`Sesudah`
+- line 101 - 111
+
+```
+//point 4 dan 5
+#ifdef CS333_P1
+int
+sys_date(void)
+{
+  struct rtcdate *d;
+  if(argptr(0, (void*)&d, sizeof(d)) < 0) return -1;
+  cmostime(d);
+  return 0;
+}
+#endif
+```
+
+### The control-p console command (point 6)
+
+#### proc.h
+
+`Sebelum`
+- line 37 - 52
+
+```
+// Per-process state
+struct proc {
+  uint sz;                     // Size of process memory (bytes)
+  pde_t* pgdir;                // Page table
+  char *kstack;                // Bottom of kernel stack for this process
+  enum procstate state;        // Process state
+  uint pid;                    // Process ID
+  struct proc *parent;         // Parent process. NULL indicates no parent
+  struct trapframe *tf;        // Trap frame for current syscall
+  struct context *context;     // swtch() here to run process
+  void *chan;                  // If non-zero, sleeping on chan
+  int killed;                  // If non-zero, have been killed
+  struct file *ofile[NOFILE];  // Open files
+  struct inode *cwd;           // Current directory
+  char name[16];               // Process name (debugging)
+};
+```
+
+`Sesudah`
+- line 36 - 56
+
+```
+// Per-process state
+struct proc {
+  uint sz;                     // Size of process memory (bytes)
+  pde_t* pgdir;                // Page table
+  char *kstack;                // Bottom of kernel stack for this process
+  enum procstate state;        // Process state
+  uint pid;                    // Process ID
+  struct proc *parent;         // Parent process. NULL indicates no parent
+  struct trapframe *tf;        // Trap frame for current syscall
+  struct context *context;     // swtch() here to run process
+  void *chan;                  // If non-zero, sleeping on chan
+  int killed;                  // If non-zero, have been killed
+  struct file *ofile[NOFILE];  // Open files
+  struct inode *cwd;           // Current directory
+  char name[16];               // Process name (debugging)
+  
+  //point 6
+  #ifdef CS333_P1
+  uint start_ticks;
+  #endif
+};
+```
+
+#### proc.c
+
+`Sebelum`
+- line 37 - 52
+
+`Sesudah`
+- line 36 - 56
+
 #### Makefile
 
 before
