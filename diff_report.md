@@ -2,7 +2,7 @@
 <br>
 
 # Code Modification Report
-Berikut adalah bagian-bagian kode yang diubah
+
 
 ## proc.c
 Line 10 - 12:
