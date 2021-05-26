@@ -1,590 +1,379 @@
-<h1 align="center"> ASSIGNMENT 1 REPORT </h1>
+<h1 align="center"> ASSIGNMENT 2 REPORT </h1>
 <br>
 
-## Modified Code
+# Code Modification Report
+Berikut adalah bagian-bagian kode yang diubah
 
-notes : 
-- point yang dimaksud adalah rujukan pengerjaan pada file assignment1.pdf
-- line sebelum, didapat dari file default xv6-pdx.tar
-- line sesudah, didapat dari file xv6-pdx github repository
-
-### Xv6 Makefile & Conditional compilation (point 1 dan 2)
-
-#### Makefile
-
-`Sebelum`
-- line 3-4
+## proc.c
+Line 10 - 12:
 ```
-CS333_PROJECT ?= 0
-PRINT_SYSCALLS ?= 0
+#ifdef CS333_P2
+  #include "uproc.h"
+#endif
 ```
 
-`Sesudah`
-- line 4-5
+### allocproc(void)
+Line 160 - 163:
 ```
-CS333_PROJECT ?= 1
-PRINT_SYSCALLS ?= 1
+#ifdef CS333_P2
+  p->cpu_ticks_total = 0;
+  p->cpu_ticks_in = 0;
+#endif // CS333_P2
 ```
 
-###  Implementing a new system call (Point 3)
-
-#### Syscall.c
-`Sebelum`
-- line 166 - 180
-
+### userinit(void)
+Line 192 - 195:
 ```
-void
-syscall(void)
-{
-  int num;
-  struct proc *curproc = myproc();
+#ifdef CS333_P2
+  p->uid = DEFAULT_UID;
+  p->gid = DEFAULT_GID;
+#endif
+```
 
-  num = curproc->tf->eax;
-  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    curproc->tf->eax = syscalls[num]();
-  } else {
-    cprintf("%d %s: unknown sys call %d\n",
-            curproc->pid, curproc->name, num);
-    curproc->tf->eax = -1;
+### fork(void)
+Line 257 - 260:
+```
+#ifdef CS333_P2
+  np->uid = curproc->uid;
+  np->gid = curproc->gid;
+#endif
+```
+
+### scheduler(void)
+Line 415 - 417:
+```
+#ifdef CS333_P2
+  p->cpu_ticks_in = ticks;
+#endif // CS333_P2
+```
+
+### sched(void)
+Line 460 - 462:
+```
+#ifdef CS333_P2
+  p->cpu_ticks_total += (ticks - p->cpu_ticks_in);
+#endif // CS333_P2
+```
+
+### procdumpP2P3P4(struct proc *p, char *state_string)
+Line 591 - 620:
+```
+  uint getElapsed = ticks-p->start_ticks;
+  uint div = (getElapsed) / 1000;
+  uint mod = getElapsed % 1000;
+  char *zero = "";
+  char *cpuZero = "";
+  uint cpuTicksTotal = p->cpu_ticks_total;
+  uint cpuSecond = cpuTicksTotal / 1000;
+  uint cpuMilSecond = cpuTicksTotal % 1000;
+  uint ppid = p->parent ? p->parent->pid : p->pid;
+
+  if (mod < 10) {
+    zero = "00";
+  } 
+  else if (mod < 100) {
+    zero = "0";
   }
-}
-```
-`Sesudah`
-- line 177 - 198
 
-```
-void
-syscall(void)
-{
-  int num;
-  struct proc *curproc = myproc();
-
-  num = curproc->tf->eax;
-  //point 3
-  #ifdef CS333_P1
-    #ifdef PRINT_SYSCALLS
-      cprintf("%s -> %d \n", syscallnames[num], num);
-    #endif
-  #endif
-
-  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    curproc->tf->eax = syscalls[num]();
-  } else {
-    cprintf("%d %s: unknown sys call %d\n",
-            curproc->pid, curproc->name, num);
-    curproc->tf->eax = -1;
+  if (cpuMilSecond < 10) {
+    cpuZero = "00";
+  } 
+  else if (cpuMilSecond < 100) {
+    cpuZero = "0";
   }
-}
+
+  cprintf(
+    "\n%d\t%s\t%d\t%d\t%d\t%d.%s%d\t%d.%s%d\t%s\t%d\t", 
+    p->pid, p->name, p->uid, p->gid, 
+    ppid, div, zero, mod, cpuSecond,cpuZero,cpuMilSecond,state_string, 
+    p->sz
+  );
 ```
 
-###  Creating a new user command & The xv6 process structure (Point 4 dan 5)
+### getprocs(uint max, struct uproc* upTable)
+Line 997 - 1027:
+```
+struct proc* p;
+  int num = 0;
+  acquire(&ptable.lock);
 
-#### Makefile
-`Sebelum`
-```
-CS333_PROJECT ?= 0
-PRINT_SYSCALLS ?= 0
-CS333_UPROGS += #_date
-```
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (num < max) {
+      if(p->state != UNUSED && p->state != EMBRYO) {
+        if(p->state >= 0 && p->state < NELEM(states) && states[p->state]){
+          safestrcpy(upTable[num].state, states[p->state],STRMAX);
+        } 
+        else {
+          safestrcpy(upTable[num].state,"???",STRMAX);
+        }
 
-`Sesudah`
-```
-CS333_PROJECT ?= 1
-PRINT_SYSCALLS ?= 1
-CS333_UPROGS += _date
-```
-#### syscall.c
-`Sebelum`
-- line 85 - 108
-
-```
-extern int sys_chdir(void);
-extern int sys_close(void);
-extern int sys_dup(void);
-extern int sys_exec(void);
-extern int sys_exit(void);
-extern int sys_fork(void);
-extern int sys_fstat(void);
-extern int sys_getpid(void);
-extern int sys_kill(void);
-extern int sys_link(void);
-extern int sys_mkdir(void);
-extern int sys_mknod(void);
-extern int sys_open(void);
-extern int sys_pipe(void);
-extern int sys_read(void);
-extern int sys_sbrk(void);
-extern int sys_sleep(void);
-extern int sys_unlink(void);
-extern int sys_wait(void);
-extern int sys_write(void);
-extern int sys_uptime(void);
-#ifdef PDX_XV6
-extern int sys_halt(void);
-#endif // PDX_XV6
+        upTable[num].pid = p->pid;
+        upTable[num].uid = p->uid;
+        upTable[num].gid = p->gid;
+        upTable[num].ppid = p->parent ? p->parent->pid : p->pid;
+        upTable[num].elapsed_ticks = ticks - p->start_ticks;
+        upTable[num].CPU_total_ticks = p->cpu_ticks_total;
+        upTable[num].size = p->sz;
+        safestrcpy(upTable[num].name, p->name, STRMAX);
+        num++;
+      }
+    } 
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return num;
 ```
 
-`Sesudah`
-- line 85 - 114
-
+## proc.h
+Line 55 - 60:
 ```
-extern int sys_chdir(void);
-extern int sys_close(void);
-extern int sys_dup(void);
-extern int sys_exec(void);
-extern int sys_exit(void);
-extern int sys_fork(void);
-extern int sys_fstat(void);
-extern int sys_getpid(void);
-extern int sys_kill(void);
-extern int sys_link(void);
-extern int sys_mkdir(void);
-extern int sys_mknod(void);
-extern int sys_open(void);
-extern int sys_pipe(void);
-extern int sys_read(void);
-extern int sys_sbrk(void);
-extern int sys_sleep(void);
-extern int sys_unlink(void);
-extern int sys_wait(void);
-extern int sys_write(void);
-extern int sys_uptime(void);
-#ifdef PDX_XV6
-extern int sys_halt(void);
-#endif // PDX_XV6
-
-//point 4 dan 5
-#ifdef CS333_P1
-// internally, the function prototype must be ’int’ not ’uint’ for sys_date()
-extern int sys_date(void);
-#endif // CS333_P1
-```
-
-`Sebelum`
-- line 110 - 135
-
-```
-static int (*syscalls[])(void) = {
-[SYS_fork]    sys_fork,
-[SYS_exit]    sys_exit,
-[SYS_wait]    sys_wait,
-[SYS_pipe]    sys_pipe,
-[SYS_read]    sys_read,
-[SYS_kill]    sys_kill,
-[SYS_exec]    sys_exec,
-[SYS_fstat]   sys_fstat,
-[SYS_chdir]   sys_chdir,
-[SYS_dup]     sys_dup,
-[SYS_getpid]  sys_getpid,
-[SYS_sbrk]    sys_sbrk,
-[SYS_sleep]   sys_sleep,
-[SYS_uptime]  sys_uptime,
-[SYS_open]    sys_open,
-[SYS_write]   sys_write,
-[SYS_mknod]   sys_mknod,
-[SYS_unlink]  sys_unlink,
-[SYS_link]    sys_link,
-[SYS_mkdir]   sys_mkdir,
-[SYS_close]   sys_close,
-#ifdef PDX_XV6
-[SYS_halt]    sys_halt,
-#endif // PDX_XV6
-};
-```
-
-`Sesudah`
-- line 116 - 146
-
-```
-static int (*syscalls[])(void) = {
-[SYS_fork]    sys_fork,
-[SYS_exit]    sys_exit,
-[SYS_wait]    sys_wait,
-[SYS_pipe]    sys_pipe,
-[SYS_read]    sys_read,
-[SYS_kill]    sys_kill,
-[SYS_exec]    sys_exec,
-[SYS_fstat]   sys_fstat,
-[SYS_chdir]   sys_chdir,
-[SYS_dup]     sys_dup,
-[SYS_getpid]  sys_getpid,
-[SYS_sbrk]    sys_sbrk,
-[SYS_sleep]   sys_sleep,
-[SYS_uptime]  sys_uptime,
-[SYS_open]    sys_open,
-[SYS_write]   sys_write,
-[SYS_mknod]   sys_mknod,
-[SYS_unlink]  sys_unlink,
-[SYS_link]    sys_link,
-[SYS_mkdir]   sys_mkdir,
-[SYS_close]   sys_close,
-#ifdef PDX_XV6
-[SYS_halt]    sys_halt,
-#endif // PDX_XV6
-
-//point 4 dan 5
-#ifdef CS333_P1
-[SYS_date]    sys_date,
-#endif
-};
-```
-#### syscall.h
-`Sebelum`
-- line 1 - 24
-
-```
-// System call numbers -- Portland State University version
-#define SYS_fork    1
-#define SYS_exit    SYS_fork+1
-#define SYS_wait    SYS_exit+1
-#define SYS_pipe    SYS_wait+1
-#define SYS_read    SYS_pipe+1
-#define SYS_kill    SYS_read+1
-#define SYS_exec    SYS_kill+1
-#define SYS_fstat   SYS_exec+1
-#define SYS_chdir   SYS_fstat+1
-#define SYS_dup     SYS_chdir+1
-#define SYS_getpid  SYS_dup+1
-#define SYS_sbrk    SYS_getpid+1
-#define SYS_sleep   SYS_sbrk+1
-#define SYS_uptime  SYS_sleep+1
-#define SYS_open    SYS_uptime+1
-#define SYS_write   SYS_open+1
-#define SYS_mknod   SYS_write+1
-#define SYS_unlink  SYS_mknod+1
-#define SYS_link    SYS_unlink+1
-#define SYS_mkdir   SYS_link+1
-#define SYS_close   SYS_mkdir+1
-#define SYS_halt    SYS_close+1
-// student system calls begin here. Follow the existing pattern.
-```
-
-`Sesudah`
-- line 1 - 26
-
-```
-// System call numbers -- Portland State University version
-#define SYS_fork    1
-#define SYS_exit    SYS_fork+1
-#define SYS_wait    SYS_exit+1
-#define SYS_pipe    SYS_wait+1
-#define SYS_read    SYS_pipe+1
-#define SYS_kill    SYS_read+1
-#define SYS_exec    SYS_kill+1
-#define SYS_fstat   SYS_exec+1
-#define SYS_chdir   SYS_fstat+1
-#define SYS_dup     SYS_chdir+1
-#define SYS_getpid  SYS_dup+1
-#define SYS_sbrk    SYS_getpid+1
-#define SYS_sleep   SYS_sbrk+1
-#define SYS_uptime  SYS_sleep+1
-#define SYS_open    SYS_uptime+1
-#define SYS_write   SYS_open+1
-#define SYS_mknod   SYS_write+1
-#define SYS_unlink  SYS_mknod+1
-#define SYS_link    SYS_unlink+1
-#define SYS_mkdir   SYS_link+1
-#define SYS_close   SYS_mkdir+1
-#define SYS_halt    SYS_close+1
-// student system calls begin here. Follow the existing pattern.
-//point 4 dan 5
-#define SYS_date    SYS_halt+1
-```
-
-#### usys.S
-`Sebelum`
-- line 1 - 32
-
-```
-#include "syscall.h"
-#include "traps.h"
-
-#define SYSCALL(name) \
-  .globl name; \
-  name: \
-    movl $SYS_ ## name, %eax; \
-    int $T_SYSCALL; \
-    ret
-
-SYSCALL(fork)
-SYSCALL(exit)
-SYSCALL(wait)
-SYSCALL(pipe)
-SYSCALL(read)
-SYSCALL(write)
-SYSCALL(close)
-SYSCALL(kill)
-SYSCALL(exec)
-SYSCALL(open)
-SYSCALL(mknod)
-SYSCALL(unlink)
-SYSCALL(fstat)
-SYSCALL(link)
-SYSCALL(mkdir)
-SYSCALL(chdir)
-SYSCALL(dup)
-SYSCALL(getpid)
-SYSCALL(sbrk)
-SYSCALL(sleep)
-SYSCALL(uptime)
-SYSCALL(halt)
-```
-`Sesudah`
-- line 1 - 33
-
-```
-#include "syscall.h"
-#include "traps.h"
-
-#define SYSCALL(name) \
-  .globl name; \
-  name: \
-    movl $SYS_ ## name, %eax; \
-    int $T_SYSCALL; \
-    ret
-
-SYSCALL(fork)
-SYSCALL(exit)
-SYSCALL(wait)
-SYSCALL(pipe)
-SYSCALL(read)
-SYSCALL(write)
-SYSCALL(close)
-SYSCALL(kill)
-SYSCALL(exec)
-SYSCALL(open)
-SYSCALL(mknod)
-SYSCALL(unlink)
-SYSCALL(fstat)
-SYSCALL(link)
-SYSCALL(mkdir)
-SYSCALL(chdir)
-SYSCALL(dup)
-SYSCALL(getpid)
-SYSCALL(sbrk)
-SYSCALL(sleep)
-SYSCALL(uptime)
-SYSCALL(halt)
-SYSCALL(date)
-```
-
-#### user.h
-
-`Sebelum`
-- line 29 - 45
-
-```
-// ulib.c
-int stat(char*, struct stat*);
-char* strcpy(char*, char*);
-void *memmove(void*, void*, int);
-char* strchr(const char*, char c);
-int strcmp(const char*, const char*);
-void printf(int, char*, ...);
-char* gets(char*, int max);
-uint strlen(char*);
-void* memset(void*, int, uint);
-void* malloc(uint);
-void free(void*);
-int atoi(const char*);
-#ifdef PDX_XV6
-int atoo(const char*);
-int strncmp(const char*, const char*, uint);
-#endif // PDX_XV6
-```
-
-`Sesudah`
-- line 29 - 49
-```
-// ulib.c
-int stat(char*, struct stat*);
-char* strcpy(char*, char*);
-void *memmove(void*, void*, int);
-char* strchr(const char*, char c);
-int strcmp(const char*, const char*);
-void printf(int, char*, ...);
-char* gets(char*, int max);
-uint strlen(char*);
-void* memset(void*, int, uint);
-void* malloc(uint);
-void free(void*);
-int atoi(const char*);
-#ifdef PDX_XV6
-int atoo(const char*);
-int strncmp(const char*, const char*, uint);
-#endif // PDX_XV6
-
-#ifdef CS333_P1
-int date(struct rtcdate*);
-#endif // CS333_P1
-```
-
-#### sysproc.c
-
-`Sebelum`
-- batas paling bawah hanya sampai line 99
-
-```
-#endif // PDX_XV6
-```
-
-`Sesudah`
-- line 101 - 111
-
-```
-//point 4 dan 5
-#ifdef CS333_P1
-int
-sys_date(void)
-{
-  struct rtcdate *d;
-  if(argptr(0, (void*)&d, sizeof(d)) < 0) return -1;
-  cmostime(d);
-  return 0;
-}
+#ifdef CS333_P2
+  uint uid;
+  uint gid;
+  uint cpu_ticks_total;
+  uint cpu_ticks_in;
 #endif
 ```
 
-### The control-p console command (point 6)
-
-#### proc.h
-
-`Sebelum`
-- line 37 - 52
-
+## time.c
+### main(int argc, char *argv[])
+Line 6 - 44:
 ```
-// Per-process state
-struct proc {
-  uint sz;                     // Size of process memory (bytes)
-  pde_t* pgdir;                // Page table
-  char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
-  uint pid;                    // Process ID
-  struct proc *parent;         // Parent process. NULL indicates no parent
-  struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
-  void *chan;                  // If non-zero, sleeping on chan
-  int killed;                  // If non-zero, have been killed
-  struct file *ofile[NOFILE];  // Open files
-  struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
-};
-```
+if(argc == 1) {
+    printf(1, "(null) ran in 0.00\n");
+  } 
+  else {
+    int start = uptime();
+    int pid = fork();
 
-`Sesudah`
-- line 36 - 56
+    if (pid > 0) {
+      pid = wait();
+    } 
+    else if (pid == 0) {
+      exec(argv[1], argv+1);
+      printf(1, "ERROR: Unknown Command\n");
+      kill(getppid());
+      exit();
+    } 
+    else {
+      printf(1, "ERROR: Fork error return -1\n");
+    }
 
-```
-// Per-process state
-struct proc {
-  uint sz;                     // Size of process memory (bytes)
-  pde_t* pgdir;                // Page table
-  char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
-  uint pid;                    // Process ID
-  struct proc *parent;         // Parent process. NULL indicates no parent
-  struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
-  void *chan;                  // If non-zero, sleeping on chan
-  int killed;                  // If non-zero, have been killed
-  struct file *ofile[NOFILE];  // Open files
-  struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
-  
-  //point 6
-  #ifdef CS333_P1
-  uint start_ticks;
-  #endif
-};
+    int end = uptime();
+    int interval = end - start;
+    int seconds = interval/1000;
+    int milSec = interval % 1000;
+    char *milSecZero = "";
+
+    if (milSec < 10) {
+      milSecZero = "00";
+    } 
+    else if (milSec < 100) {
+      milSecZero = "0";
+    }
+
+    printf(
+      1,"%s ran in %d.%s%d\n",argv[1],seconds,milSecZero,milSec
+    );
+  }
+
+  exit();
 ```
 
-
-#### proc.c
-
-`Sebelum`
-- line 147 - 153
-
+## ps.c
+### main(void)
+Line 10 - 52:
 ```
- sp -= sizeof *p->context;
-  p->context = (struct context*)sp;
-  memset(p->context, 0, sizeof *p->context);
-  p->context->eip = (uint)forkret;
-
-  return p;
-}
-```
-
-`Sesudah`
-- line 146 - 158
-
-```
-sp -= sizeof *p->context;
-  p->context = (struct context*)sp;
-  memset(p->context, 0, sizeof *p->context);
-  p->context->eip = (uint)forkret;
-
-  //control P point 6
-  //ticks maksudnya mikrodetik, jadi ingin tau prosesnya dimulainya dari mikrodetik
-  #ifdef CS333_P1 
-  p -> start_ticks = ticks;
-  #endif
-
-  return p;
-}
-```
-
-`Sebelum`
-- line 562 - 569
-
-```
-#elif defined(CS333_P1)
-void
-procdumpP1(struct proc *p, char *state_string)
 {
-  cprintf("TODO for Project 1, delete this line and implement procdumpP1() in proc.c to print a row\n");
-  return;
-}
-#endif
-```
+  struct uproc *proc = malloc(sizeof(struct uproc)*MAX);
+  int MaxNumber = getprocs(MAX, proc);
+  printf(1,"PID\tName\t\tUID\tGID\tPPID\tElapsed\tCPU\tState\tSize\n");
 
-`Sesudah`
-- line 563 - 598
-
-```
-#elif defined(CS333_P1)
-//point 6
-void
-procdumpP1(struct proc *p, char *state_string)
-{
   int i;
-  uint pc[10];
-  char *state;
-  uint enumState = p -> state;
+  for(i = 0; i < MaxNumber; i++){
+    struct uproc currentProc = proc[i];
+    uint getElapsedTicks = currentProc.elapsed_ticks;
+    uint Second = getElapsedTicks/1000;
+    uint milSecond = getElapsedTicks%1000;
+    char* zero = "";
+    uint getCpuTotalTicks = currentProc.CPU_total_ticks;
+    uint cpuTotalSecond = getCpuTotalTicks/1000;
+    uint cpuTotalMilSecond = getCpuTotalTicks % 1000;
+    char* cpuZero = "";
 
-  if(enumState == 4){state = "Running";}
-  else if(enumState == 3){state = "Runnable";}
-  else if(enumState == 2){state = "Sleeping";}
-  else if(enumState == 1){state = "Embryo";}
-  else if(enumState == 0){state = "Unused";}
-  else{
-    state = "Zombie";
+    if (milSecond < 10) {
+      zero = "00";
+    } 
+    else if (milSecond < 100) {
+      zero = "0";
+    }
+
+    if(cpuTotalMilSecond < 10){
+      cpuZero = "00";
+    } 
+    else if (cpuTotalMilSecond < 100) {
+      cpuZero = "0";
+    }
+
+    printf(
+      1,
+      "%d\t%s\t\t%d\t%d\t%d\t%d.%s%d\t%d.%s%d\t%s\t%d\n",
+      currentProc.pid,currentProc.name,currentProc.uid,currentProc.gid,currentProc.ppid,
+      Second,zero,milSecond,cpuTotalSecond,cpuZero,cpuTotalMilSecond,
+      currentProc.state,currentProc.size
+    );
   }
 
-  uint getTicks = ticks-p->start_ticks;
-  uint ticksDiv = (getTicks) / 1000;
-  uint ticksMod = getTicks % (ticksDiv*1000);
-
-  cprintf("%d", getTicks);
-
-  cprintf("\n%d\t%s\t%d.%d\t%s\t%d\t", p->pid, p->name, ticksDiv, ticksMod, state, p->sz);
-
-  getcallerpcs((uint*)p->context->ebp+2, pc);
-
-  for(i=0; i<10 && pc[i] != 0; i++)
-    cprintf(" %p", pc[i]);
-
-  cprintf("\n");
-  return;
+  free(proc);
+  exit();
 }
+```
+## syscall.h
+Line 25 - 30:
+```
+#define SYS_getuid      SYS_date+1
+#define SYS_getgid      SYS_getuid+1
+#define SYS_getppid     SYS_getgid+1
+#define SYS_setuid      SYS_getppid+1
+#define SYS_setgid      SYS_setuid+1
+#define SYS_getprocs    SYS_setgid+1
+```
+
+## syscall.c
+Line 113 - 120:
+```
+#ifdef CS333_P2
+extern int sys_getuid(void);
+extern int sys_getgid(void);
+extern int sys_getppid(void);
+extern int sys_setuid(void);
+extern int sys_setgid(void);
+extern int sys_getprocs(void);
 #endif
 ```
+
+Line 150 - 157:
+```C
+#ifdef CS333_P2
+[SYS_getuid]    sys_getuid,
+[SYS_getgid]    sys_getgid,
+[SYS_getppid]   sys_getppid,
+[SYS_setuid]    sys_setuid,
+[SYS_setgid]    sys_setgid,
+[SYS_getprocs]  sys_getprocs,
+#endif
+```
+
+## sysproc.c
+### sys_getuid(void)
+Line 122 - 123:
+```
+struct proc *curproc = myproc();
+return curproc->uid;
+```
+
+### sys_getgid(void)
+Line 129 - 130:
+```
+struct proc *curproc = myproc();
+return curproc->gid;
+```
+
+### sys_getppid(void)
+Line 136 - 138:
+```
+struct proc *curproc = myproc();
+struct proc *parent = curproc->parent;
+return parent != NULL ? parent->pid : 0;
+```
+
+### sys_setuid(void)
+Line 143 - 153:
+```
+uint uid;
+struct proc *curproc = myproc();
+
+if(argint(0, (int*)&uid) >= 0) {
+  if(uid >= 0 && uid <= 32767) {
+    curproc->uid = uid;
+    return 0;
+  }
+}
+
+return -1;
+```
+
+### sys_setgid(void)
+Line 158 - 168:
+```
+uint gid;
+struct proc *curproc = myproc();
+
+if(argint(0, (int*)&gid) >= 0) {
+  if(gid >= 0 && gid <= 32767) {
+    curproc->gid = gid;
+    return 0;
+  }
+}
+
+return -1;
+```
+
+### sys_getprocs(void)
+Line 173 - 184:
+```
+uint max;
+struct uproc* proc;
+
+if (argint(0,(int*)&max) >= 0) {
+  if (max == 1 || max == 16 || max == 64 || max == 72) {
+    if (argptr(1, (void*)&proc, sizeof(struct uproc)) >= 0) {
+      return getprocs(max, proc);
+    }
+  }
+}
+
+return -1;
+```
+
+
+
+## defs.h
+Line 1 - 3:
+```
+#ifdef CS333_P2
+#include "uproc.h"
+#endif
+```
+Line 131 - 133:
+```C
+#ifdef CS333_P2
+int             getprocs(uint max, struct uproc* upTable);
+#endif
+```
+
+## usys.s
+Line 34 - 39:
+```
+SYSCALL(getuid)
+SYSCALL(getgid)
+SYSCALL(getppid)
+SYSCALL(setuid)
+SYSCALL(setgid)
+SYSCALL(getprocs)
+```
+
+## user.h
+Line 52 - 58:
+```
+uint getuid(void);
+uint getgid(void);
+uint getppid(void);
+
+int setuid(uint);
+int setgid(uint);
+int getprocs(uint max, struct uproc* table);
+```
+
