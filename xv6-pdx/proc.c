@@ -7,6 +7,10 @@
 #include "proc.h"
 #include "spinlock.h"
 
+#ifdef CS333_P2
+  #include "uproc.h"
+#endif
+
 static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
@@ -102,6 +106,7 @@ myproc(void) {
   return p;
 }
 
+//PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
@@ -148,15 +153,19 @@ allocproc(void)
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  //control P point 6
-  //ticks maksudnya mikrodetik, jadi ingin tau prosesnya dimulainya dari mikrodetik
-  #ifdef CS333_P1 
-  p -> start_ticks = ticks;
-  #endif
+  #ifdef CS333_P1
+    p->start_ticks = ticks;
+  #endif // CS333_P1
+
+  #ifdef CS333_P2
+    p->cpu_ticks_total = 0;
+    p->cpu_ticks_in = 0;
+  #endif // CS333_P2
 
   return p;
 }
 
+//PAGEBREAK: 32
 // Set up first user process.
 void
 userinit(void)
@@ -179,6 +188,11 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
+
+  #ifdef CS333_P2
+    p->uid = DEFAULT_UID;
+    p->gid = DEFAULT_GID;
+  #endif
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -239,6 +253,11 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  #ifdef CS333_P2
+    np->uid = curproc->uid;
+    np->gid = curproc->gid;
+  #endif
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -353,6 +372,7 @@ wait(void)
   }
 }
 
+//PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -366,17 +386,17 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-#ifdef PDX_XV6
-  int idle;  // for checking if processor is idle
-#endif // PDX_XV6
+  #ifdef PDX_XV6
+    int idle;  // for checking if processor is idle
+  #endif // PDX_XV6
 
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-#ifdef PDX_XV6
-    idle = 1;  // assume idle unless we schedule a process
-#endif // PDX_XV6
+    #ifdef PDX_XV6
+      idle = 1;  // assume idle unless we schedule a process
+    #endif // PDX_XV6
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -386,12 +406,15 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-#ifdef PDX_XV6
-      idle = 0;  // not idle this timeslice
-#endif // PDX_XV6
+      #ifdef PDX_XV6
+        idle = 0;  // not idle this timeslice
+      #endif // PDX_XV6
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      #ifdef CS333_P2
+        p->cpu_ticks_in = ticks;
+      #endif // CS333_P2
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -400,13 +423,14 @@ scheduler(void)
       c->proc = 0;
     }
     release(&ptable.lock);
-#ifdef PDX_XV6
-    // if idle, wait for next interrupt
-    if (idle) {
-      sti();
-      hlt();
-    }
-#endif // PDX_XV6
+
+    #ifdef PDX_XV6
+      // if idle, wait for next interrupt
+      if (idle) {
+        sti();
+        hlt();
+      }
+    #endif // PDX_XV6
   }
 }
 
@@ -432,6 +456,11 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
+
+  #ifdef CS333_P2
+    p->cpu_ticks_total += (ticks - p->cpu_ticks_in);
+  #endif // CS333_P2
+
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
 }
@@ -505,6 +534,7 @@ sleep(void *chan, struct spinlock *lk)
   }
 }
 
+//PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
 static void
@@ -549,6 +579,7 @@ kill(int pid)
   return -1;
 }
 
+//PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
@@ -557,43 +588,59 @@ kill(int pid)
 void
 procdumpP2P3P4(struct proc *p, char *state_string)
 {
-  cprintf("TODO for Project 2, delete this line and implement procdumpP2P3P4() in proc.c to print a row\n");
-  return;
+  uint getElapsed = ticks-p->start_ticks;
+  uint div = (getElapsed) / 1000;
+  uint mod = getElapsed % 1000;
+  char *zero = "";
+  char *cpuZero = "";
+  uint cpuTicksTotal = p->cpu_ticks_total;
+  uint cpuSecond = cpuTicksTotal / 1000;
+  uint cpuMilSecond = cpuTicksTotal % 1000;
+  uint ppid = p->parent ? p->parent->pid : p->pid;
+
+  if (mod < 10) {
+    zero = "00";
+  } 
+  else if (mod < 100) {
+    zero = "0";
+  }
+
+  if (cpuMilSecond < 10) {
+    cpuZero = "00";
+  } 
+  else if (cpuMilSecond < 100) {
+    cpuZero = "0";
+  }
+
+  cprintf(
+    "\n%d\t%s\t%d\t%d\t%d\t%d.%s%d\t%d.%s%d\t%s\t%d\t", 
+    p->pid, p->name, p->uid, p->gid, 
+    ppid, div, zero, mod, cpuSecond,cpuZero,cpuMilSecond,state_string, 
+    p->sz
+  );
 }
 #elif defined(CS333_P1)
-//point 6
 void
 procdumpP1(struct proc *p, char *state_string)
 {
-  int i;
-  uint pc[10];
-  char *state;
-  uint enumState = p -> state;
+  uint getElapsed = ticks-p->start_ticks;
+  uint div = (getElapsed) / 1000;
+  uint mod = getElapsed % 1000;
+  char *zero = "";
 
-  if(enumState == 4){state = "Running";}
-  else if(enumState == 3){state = "Runnable";}
-  else if(enumState == 2){state = "Sleeping";}
-  else if(enumState == 1){state = "Embryo";}
-  else if(enumState == 0){state = "Unused";}
-  else{
-    state = "Zombie";
+  if (mod < 10) {
+    zero = "00";
+  } 
+  else if (mod < 100) {
+    zero = "0";
   }
 
-  uint getTicks = ticks-p->start_ticks;
-  uint ticksDiv = (getTicks) / 1000;
-  uint ticksMod = getTicks % (ticksDiv*1000);
-
-  cprintf("%d", getTicks);
-
-  cprintf("\n%d\t%s\t%d.%d\t%s\t%d\t", p->pid, p->name, ticksDiv, ticksMod, state, p->sz);
-
-  getcallerpcs((uint*)p->context->ebp+2, pc);
-
-  for(i=0; i<10 && pc[i] != 0; i++)
-    cprintf(" %p", pc[i]);
-
-  cprintf("\n");
-  return;
+  cprintf(
+    "\n%d\t%s\t%d.%s%d\t%s\t%d\t\n",
+    p->pid,p->name,
+    div,zero,mod,state_string,
+    p->sz
+  );
 }
 #endif
 
@@ -605,15 +652,15 @@ procdump(void)
   char *state;
   uint pc[10];
 
-#if defined(CS333_P4)
-#define HEADER "\nPID\tName         UID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
-#elif defined(CS333_P2)
-#define HEADER "\nPID\tName         UID\tGID\tPPID\tElapsed\tCPU\tState\tSize\t PCs\n"
-#elif defined(CS333_P1)
-#define HEADER "\nPID\tName         Elapsed\tState\tSize\t PCs\n"
-#else
-#define HEADER "\n"
-#endif
+  #if defined(CS333_P4)
+    #define HEADER "\nPID\tName\tUID\tGID\tPPID\tPrio\tElapsed\tCPU\tState\tSize\t PCs\n"
+  #elif defined(CS333_P2)
+    #define HEADER "\nPID\tName\tUID\tGID\tPPID\tElapsed\tCPU\tState\tSize\t PCs\n"
+  #elif defined(CS333_P1)
+    #define HEADER "\nPID\tName\tElapsed\tState\tSize\t PCs\n"
+  #else
+    #define HEADER "\n"
+  #endif
 
   cprintf(HEADER);  // not conditionally compiled as must work in all project states
 
@@ -627,13 +674,13 @@ procdump(void)
 
     // see TODOs above this function
     // P2 and P3 are identical and the P4 change is minor
-#if defined(CS333_P2)
-    procdumpP2P3P4(p, state);
-#elif defined(CS333_P1)
-    procdumpP1(p, state);
-#else
-    cprintf("%d\t%s\t%s\t", p->pid, p->name, state);
-#endif
+    #if defined(CS333_P2)
+      procdumpP2P3P4(p, state);
+    #elif defined(CS333_P1)
+      procdumpP1(p, state);
+    #else
+      cprintf("%d\t%s\t%s\t", p->pid, p->name, state);  
+    #endif
 
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
@@ -642,9 +689,9 @@ procdump(void)
     }
     cprintf("\n");
   }
-#ifdef CS333_P1
-  cprintf("$ ");  // simulate shell prompt
-#endif // CS333_P1
+  #ifdef CS333_P1
+    cprintf("$ ");  // simulate shell prompt
+  #endif // CS333_P1
 }
 
 #if defined(CS333_P3)
@@ -944,3 +991,39 @@ checkProcs(const char *file, const char *func, int line)
 }
 #endif // DEBUG
 
+#ifdef CS333_P2
+int
+getprocs(uint max, struct uproc* upTable){
+  struct proc* p;
+  int num = 0;
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (num < max) {
+      if(p->state != UNUSED && p->state != EMBRYO) {
+        if(p->state >= 0 && p->state < NELEM(states) && states[p->state]){
+          safestrcpy(upTable[num].state, states[p->state],STRMAX);
+        } 
+        else {
+          safestrcpy(upTable[num].state,"???",STRMAX);
+        }
+
+        upTable[num].pid = p->pid;
+        upTable[num].uid = p->uid;
+        upTable[num].gid = p->gid;
+        upTable[num].ppid = p->parent ? p->parent->pid : p->pid;
+        upTable[num].elapsed_ticks = ticks - p->start_ticks;
+        upTable[num].CPU_total_ticks = p->cpu_ticks_total;
+        upTable[num].size = p->sz;
+        safestrcpy(upTable[num].name, p->name, STRMAX);
+        num++;
+      }
+    } 
+    else {
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return num;
+}
+#endif // CS333_P2
